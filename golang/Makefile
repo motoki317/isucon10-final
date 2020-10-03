@@ -21,7 +21,7 @@ DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=isucon
 DB_PASS=isucon
-DB_NAME=isuumo
+DB_NAME=xsuportal
 
 SLOW_LOG=/tmp/slow-query.log
 
