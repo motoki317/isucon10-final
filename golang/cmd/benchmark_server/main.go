@@ -45,6 +45,13 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 	}
 	contestStartsAtTimestamp := timestamppb.New(contestStartsAtTime)
 
+	randomBytes := make([]byte, 16)
+	_, err = rand.Read(randomBytes)
+	if err != nil {
+		return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("read random: %w", err))
+	}
+	handle := base64.StdEncoding.EncodeToString(randomBytes)
+
 	var jobHandle *bench.ReceiveBenchmarkJobResponse_JobHandle
 	for {
 		next, err := func() (bool, error) {
@@ -75,12 +82,6 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 			if err != nil {
 				return false, fmt.Errorf("get benchmark job with lock: %w", err)
 			}
-			randomBytes := make([]byte, 16)
-			_, err = rand.Read(randomBytes)
-			if err != nil {
-				return false, fmt.Errorf("read random: %w", err)
-			}
-			handle := base64.StdEncoding.EncodeToString(randomBytes)
 			_, err = tx.Exec(
 				"UPDATE `benchmark_jobs` SET `status` = ?, `handle` = ? WHERE `id` = ? AND `status` = ? LIMIT 1",
 				resources.BenchmarkJob_SENT,
