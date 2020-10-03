@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -72,17 +73,6 @@ func main() {
 
 	db, _ = xsuportal.GetDB()
 	db.SetMaxOpenConns(10)
-
-	go func() {
-		for {
-			err := updateAudienceLeaderboard(srv.Debug)
-			if err != nil {
-				log.Println(err)
-			}
-
-			time.Sleep(audienceLeaderboardCacheTime)
-		}
-	}()
 
 	//srv.Use(middleware.Logger())
 	srv.Use(middleware.Recover())
@@ -162,11 +152,20 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 // GET /api/audience/dashboard
 // アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
 
-var audienceLeaderboardCache unsafe.Pointer //*[]byte
-
-const audienceLeaderboardCacheTime = 000 * time.Millisecond
+var audienceLeaderboardCache []byte
+var audienceLeaderboardCacheM sync.Mutex
+var audienceLeaderboardCacheRenderedM sync.RWMutex
+var audienceLeaderboardCacheT time.Time
 
 func updateAudienceLeaderboard(isDebug bool) error {
+	now := time.Now()
+	audienceLeaderboardCacheM.Lock()
+	defer audienceLeaderboardCacheM.Unlock()
+	if audienceLeaderboardCacheT.After(now) {
+		return nil
+	}
+	now = time.Now()
+
 	leaderboard, err := makeLeaderboardPB(isDebug, 0)
 	if err != nil {
 		return fmt.Errorf("make leaderboard: %w", err)
@@ -175,7 +174,11 @@ func updateAudienceLeaderboard(isDebug bool) error {
 		Leaderboard: leaderboard,
 	})
 
-	atomic.StorePointer(&audienceLeaderboardCache, unsafe.Pointer(&marshalled))
+	audienceLeaderboardCacheT = now
+	audienceLeaderboardCacheM.Lock()
+	audienceLeaderboardCache = marshalled
+	audienceLeaderboardCacheM.Unlock()
+
 	return nil
 }
 
@@ -943,6 +946,8 @@ func (*RegistrationService) CreateTeam(e echo.Context) error {
 		return fmt.Errorf("update team: %w", err)
 	}
 
+	updateAudienceLeaderboard(false)
+
 	return writeProto(e, http.StatusOK, &registrationpb.CreateTeamResponse{
 		TeamId: teamID,
 	})
@@ -1046,6 +1051,9 @@ func (*RegistrationService) UpdateRegistration(e echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
+
+	updateAudienceLeaderboard(false)
+
 	return writeProto(e, http.StatusOK, &registrationpb.UpdateRegistrationResponse{})
 }
 
@@ -1090,6 +1098,9 @@ func (*RegistrationService) DeleteRegistration(e echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
+
+	updateAudienceLeaderboard(false)
+
 	return writeProto(e, http.StatusOK, &registrationpb.DeleteRegistrationResponse{})
 }
 
@@ -1130,7 +1141,9 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 
 func (*AudienceService) Dashboard(e echo.Context) error {
 	// cacheしたものを返すだけ
-	return writeProtoMarshalled(e, http.StatusOK, *(*[]byte)(atomic.LoadPointer(&audienceLeaderboardCache)))
+	audienceLeaderboardCacheRenderedM.RLock()
+	defer audienceLeaderboardCacheRenderedM.RUnlock()
+	return writeProtoMarshalled(e, http.StatusOK, audienceLeaderboardCache)
 }
 
 type XsuportalContext struct {
