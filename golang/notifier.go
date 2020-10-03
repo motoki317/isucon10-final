@@ -3,6 +3,7 @@ package xsuportal
 import (
 	"encoding/base64"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -33,6 +34,8 @@ type notifiableContestant struct {
 	P256dh   string `db:"p256dh"`
 	Auth     string `db:"auth"`
 }
+
+var countNotify int64 = 0
 
 func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, updated bool) error {
 	var contestants []notifiableContestant
@@ -67,13 +70,13 @@ func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, up
 				},
 			},
 		}
-		notification, err := n.notify(db, notificationPB, contestant.ID)
-		if err != nil {
-			return fmt.Errorf("notify: %w", err)
-		}
+		//notification, err := n.notify(db, notificationPB, contestant.ID)
+		//if err != nil {
+		//	return fmt.Errorf("notify: %w", err)
+		//}
 		if n.VAPIDKey() != nil {
-			notificationPB.Id = notification.ID
-			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
+			notificationPB.Id = atomic.AddInt64(&countNotify, 1)
+			notificationPB.CreatedAt = timestamppb.New(time.Now())
 			// TODO: Web Push IIKANJI NI SHITE
 			n.notifyProto(contestant, notificationPB)
 		}
@@ -101,12 +104,12 @@ func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) er
 				},
 			},
 		}
-		notification, err := n.notify(db, notificationPB, contestant.ID)
-		if err != nil {
-			return fmt.Errorf("notify: %w", err)
-		}
+		//notification, err := n.notify(db, notificationPB, contestant.ID)
+		//if err != nil {
+		//	return fmt.Errorf("notify: %w", err)
+		//}
 		if n.VAPIDKey() != nil {
-			notificationPB.Id = notification.ID
+			notificationPB.Id = atomic.AddInt64(&countNotify, 1)
 			notificationPB.CreatedAt = timestamppb.New(time.Now())
 			// TODO: Web Push IIKANJI NI SHITE
 			n.notifyProto(contestant, notificationPB)
