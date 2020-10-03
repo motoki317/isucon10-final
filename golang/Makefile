@@ -7,7 +7,7 @@ GOFILES=$(wildcard ./*.go ./**/*.go)
 
 #-------------------------------------------------------------------------------
 
-APP_SRV=isuumo.go.service
+#APP_SRV=isuumo.go.service
 
 GIT_ROOT=.
 GIT_EMAIL=syu.takayama@gmail.com
@@ -77,7 +77,9 @@ restart: restart-nginx restart-mysql restart-app
 
 .PHONY: restart-app
 restart-app:
-	sudo systemctl restart $(APP_SRV)
+	#sudo systemctl restart $(APP_SRV)
+	sudo systemctl restart xsuportal-web-golang.service
+	sudo systemctl restart xsuportal-api-golang.service
 
 .PHONY: restart-nginx
 restart-nginx:
