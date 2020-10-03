@@ -27,7 +27,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	_ "net/http/pprof"
+	//_ "net/http/pprof"
 
 	xsuportal "github.com/isucon/isucon10-final/webapp/golang"
 	xsuportalpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal"
@@ -53,9 +53,9 @@ var db *sqlx.DB
 var notifier xsuportal.Notifier
 
 func main() {
-	go func() {
-		log.Fatal(http.ListenAndServe(":6060", nil))
-	}()
+	//go func() {
+	//	log.Fatal(http.ListenAndServe(":6060", nil))
+	//}()
 
 	srv := echo.New()
 	srv.Debug = false //util.GetEnv("DEBUG", "") != ""
