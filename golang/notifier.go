@@ -105,7 +105,7 @@ func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, up
 			notificationPB.Id = notification.ID
 			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
 			// TODO: Web Push IIKANJI NI SHITE
-			n.sendProto(contestant, notificationPB)
+			n.sendNotification(contestant, notification.EncodedMessage)
 		}
 	}
 	return nil
@@ -139,19 +139,18 @@ func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) er
 			notificationPB.Id = notification.ID
 			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
 			// TODO: Web Push IIKANJI NI SHITE
-			n.sendProto(contestant, notificationPB)
+			n.sendNotification(contestant, notification.EncodedMessage)
 		}
 	}
 	return nil
 }
 
-func (n *Notifier) sendProto(c contestantType, m proto.Message) error {
-	res, _ := proto.Marshal(m)
+func (n *Notifier) sendNotification(c contestantType, m string) error {
 	var s webpush.Subscription
 	s.Endpoint = c.Endpoint
 	s.Keys.P256dh = c.P256dh
 	s.Keys.Auth = c.Auth
-	resp, err := webpush.SendNotification(res, &s, n.VAPIDKey())
+	resp, err := webpush.SendNotification([]byte(m), &s, n.VAPIDKey())
 	if err != nil {
 		return err
 	}
