@@ -109,17 +109,18 @@ pprof:
 	$(SLACKCAT) -n pprof1.png pprof1.png
 	$(SLACKCAT) -n pprof2.png pprof2.png
 
+BUILD_DIR=$(PWD)
 .PHONY: pprof1_http
 pprof1_http:
-	go tool pprof -http=0.0.0.0:8080 $(BUILD_DIR)/$(BIN_NAME) -source_path=$(BUILD_DIR) http://localhost:6060/debug/pprof/profile
+	go tool pprof -http=0.0.0.0:8080 $(BUILD_DIR)/bin/benchmark_server -source_path=$(BUILD_DIR) http://localhost:6060/debug/pprof/profile
 
 .PHONY: pprof2_http
 pprof2_http:
-	go tool pprof -http=0.0.0.0:8081 $(BUILD_DIR)/$(BIN_NAME) -source_path=$(BUILD_DIR) http://localhost:6061/debug/pprof/profile
+	go tool pprof -http=0.0.0.0:8081 $(BUILD_DIR)/bin/xsuportal -source_path=$(BUILD_DIR) http://localhost:6061/debug/pprof/profile
 
 .PHONY: pprof_local
 pprof_local:
-	go tool pprof -http=0.0.0.0:8080 $(BUILD_DIR)/$(BIN_NAME) -source_path=$(BUILD_DIR) $(FILE)
+	go tool pprof -http=0.0.0.0:8080 -source_path=$(BUILD_DIR) $(FILE)
 
 
 .PHONY: kataribe
