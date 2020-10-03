@@ -1136,14 +1136,16 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 }
 
 var (
-	audienceLeaderboardCache          *resourcespb.Leaderboard
+	// audienceLeaderboardCache
+	// marshalした結果のcache
+	audienceLeaderboardCache          []byte
 	audienceLeaderboardCacheExpiresAt time.Time
 )
 
 const audienceLeaderboardCacheTime = 500 * time.Millisecond
 
 func (*AudienceService) Dashboard(e echo.Context) error {
-	var leaderboard *resourcespb.Leaderboard
+	var res []byte
 	/**
 	当日マニュアルより
 
@@ -1153,19 +1155,20 @@ func (*AudienceService) Dashboard(e echo.Context) error {
 	// 0.5秒間キャッシュする
 	if audienceLeaderboardCache != nil &&
 		time.Now().Before(audienceLeaderboardCacheExpiresAt) {
-		leaderboard = audienceLeaderboardCache
+		res = audienceLeaderboardCache
 	} else {
-		var err error
-		leaderboard, err = makeLeaderboardPB(e, 0)
+		leaderboard, err := makeLeaderboardPB(e, 0)
 		if err != nil {
 			return fmt.Errorf("make leaderboard: %w", err)
 		}
-		audienceLeaderboardCache = leaderboard
+		marshalled, _ := proto.Marshal(&audiencepb.DashboardResponse{
+			Leaderboard: leaderboard,
+		})
+		audienceLeaderboardCache = marshalled
 		audienceLeaderboardCacheExpiresAt = time.Now().Add(audienceLeaderboardCacheTime)
+		res = marshalled
 	}
-	return writeProto(e, http.StatusOK, &audiencepb.DashboardResponse{
-		Leaderboard: leaderboard,
-	})
+	return writeProtoMarshalled(e, http.StatusOK, res)
 }
 
 type XsuportalContext struct {
@@ -1306,6 +1309,12 @@ func contestStatusRestricted(e echo.Context, db sqlx.Queryer, status resourcespb
 func writeProto(e echo.Context, code int, m proto.Message) error {
 	res, _ := proto.Marshal(m)
 	return e.Blob(code, "application/vnd.google.protobuf", res)
+}
+
+// writeProtoMarshalled
+// proto.Marshal で既にmarshalされた（cacheされた）byte列を送ります
+func writeProtoMarshalled(e echo.Context, code int, m []byte) error {
+	return e.Blob(code, "application/vnd.google.protobuf", m)
 }
 
 func halt(e echo.Context, code int, humanMessage string, err error) error {
