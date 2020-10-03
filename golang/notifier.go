@@ -3,6 +3,7 @@ package xsuportal
 import (
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/golang/protobuf/proto"
@@ -106,7 +107,7 @@ func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) er
 		}
 		if n.VAPIDKey() != nil {
 			notificationPB.Id = notification.ID
-			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
+			notificationPB.CreatedAt = timestamppb.New(time.Now())
 			// TODO: Web Push IIKANJI NI SHITE
 			n.notifyProto(contestant, notificationPB)
 		}
