@@ -102,8 +102,10 @@ analyze: kataribe slow
 
 .PHONY: pprof
 pprof:
-	$(PPROF) -png -output pprof.png http://localhost:6060/debug/pprof/profile?seconds=60
-	$(SLACKCAT) -n pprof.png pprof.png
+	$(PPROF) -png -output pprof1.png http://localhost:6060/debug/pprof/profile?seconds=60 &
+	$(PPROF) -png -output pprof2.png http://localhost:6061/debug/pprof/profile?seconds=60 &
+	$(SLACKCAT) -n pprof1.png pprof1.png
+	$(SLACKCAT) -n pprof2.png pprof2.png
 
 .PHONY: kataribe
 kataribe:
