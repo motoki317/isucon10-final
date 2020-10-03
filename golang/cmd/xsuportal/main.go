@@ -164,7 +164,7 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 
 var audienceLeaderboardCache unsafe.Pointer //*[]byte
 
-const audienceLeaderboardCacheTime = 500 * time.Millisecond
+const audienceLeaderboardCacheTime = 100 * time.Millisecond
 
 func updateAudienceLeaderboard(isDebug bool) error {
 	leaderboard, err := makeLeaderboardPB(isDebug, 0)
