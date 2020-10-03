@@ -37,14 +37,6 @@ func (b *benchmarkQueueService) Svc() *bench.BenchmarkQueueService {
 }
 
 func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *bench.ReceiveBenchmarkJobRequest) (*bench.ReceiveBenchmarkJobResponse, error) {
-
-	var contestStartsAtTime time.Time
-	err := db.Get(&contestStartsAtTime, "SELECT `contest_starts_at` FROM `contest_config` LIMIT 1")
-	if err != nil {
-		return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("get contest starts at: %w", err))
-	}
-	contestStartsAtTimestamp := timestamppb.New(contestStartsAtTime)
-
 	var jobHandle *bench.ReceiveBenchmarkJobResponse_JobHandle
 	for {
 		next, err := func() (bool, error) {
@@ -62,6 +54,19 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 				return false, nil
 			}
 
+			var gotLock bool
+			err = tx.Get(
+				&gotLock,
+				"SELECT 1 FROM `benchmark_jobs` WHERE `id` = ? AND `status` = ? FOR UPDATE",
+				job.ID,
+				resources.BenchmarkJob_PENDING,
+			)
+			if err == sql.ErrNoRows {
+				return true, nil
+			}
+			if err != nil {
+				return false, fmt.Errorf("get benchmark job with lock: %w", err)
+			}
 			randomBytes := make([]byte, 16)
 			_, err = rand.Read(randomBytes)
 			if err != nil {
@@ -75,11 +80,14 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 				job.ID,
 				resources.BenchmarkJob_PENDING,
 			)
-			if err == sql.ErrNoRows {
-				return true, nil
-			}
 			if err != nil {
 				return false, fmt.Errorf("update benchmark job status: %w", err)
+			}
+
+			var contestStartsAt time.Time
+			err = tx.Get(&contestStartsAt, "SELECT `contest_starts_at` FROM `contest_config` LIMIT 1")
+			if err != nil {
+				return false, fmt.Errorf("get contest starts at: %w", err)
 			}
 
 			if err := tx.Commit(); err != nil {
@@ -90,7 +98,7 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 				JobId:            job.ID,
 				Handle:           handle,
 				TargetHostname:   job.TargetHostName,
-				ContestStartedAt: contestStartsAtTimestamp,
+				ContestStartedAt: timestamppb.New(contestStartsAt),
 				JobCreatedAt:     timestamppb.New(job.CreatedAt),
 			}
 			return false, nil
