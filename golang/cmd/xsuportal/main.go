@@ -84,7 +84,7 @@ func main() {
 		}
 	}()
 
-	srv.Use(middleware.Logger())
+	//srv.Use(middleware.Logger())
 	srv.Use(middleware.Recover())
 	srv.Use(session.Middleware(sessions.NewCookieStore([]byte("tagomoris"))))
 
@@ -164,7 +164,7 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 
 var audienceLeaderboardCache unsafe.Pointer //*[]byte
 
-const audienceLeaderboardCacheTime = 100 * time.Millisecond
+const audienceLeaderboardCacheTime = 000 * time.Millisecond
 
 func updateAudienceLeaderboard(isDebug bool) error {
 	leaderboard, err := makeLeaderboardPB(isDebug, 0)
