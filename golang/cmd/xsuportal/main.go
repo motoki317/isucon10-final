@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/golang/protobuf/proto"
@@ -25,6 +27,8 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	_ "net/http/pprof"
+
 	xsuportal "github.com/isucon/isucon10-final/webapp/golang"
 	xsuportalpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal"
 	resourcespb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/resources"
@@ -34,8 +38,6 @@ import (
 	contestantpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/services/contestant"
 	registrationpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/services/registration"
 	"github.com/isucon/isucon10-final/webapp/golang/util"
-
-	_ "net/http/pprof"
 )
 
 const (
@@ -159,7 +161,8 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 //
 // GET /api/audience/dashboard
 // アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
-var audienceLeaderboardCache []byte
+
+var audienceLeaderboardCache unsafe.Pointer //*[]byte
 
 const audienceLeaderboardCacheTime = 500 * time.Millisecond
 
@@ -171,7 +174,8 @@ func updateAudienceLeaderboard(isDebug bool) error {
 	marshalled, _ := proto.Marshal(&audiencepb.DashboardResponse{
 		Leaderboard: leaderboard,
 	})
-	audienceLeaderboardCache = marshalled
+
+	atomic.StorePointer(&audienceLeaderboardCache, unsafe.Pointer(&marshalled))
 	return nil
 }
 
@@ -1127,7 +1131,7 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 
 func (*AudienceService) Dashboard(e echo.Context) error {
 	// cacheしたものを返すだけ
-	return writeProtoMarshalled(e, http.StatusOK, audienceLeaderboardCache)
+	return writeProtoMarshalled(e, http.StatusOK, *(*[]byte)(atomic.LoadPointer(&audienceLeaderboardCache)))
 }
 
 type XsuportalContext struct {
