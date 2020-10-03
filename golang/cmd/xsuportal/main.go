@@ -71,6 +71,17 @@ func main() {
 	db, _ = xsuportal.GetDB()
 	db.SetMaxOpenConns(10)
 
+	go func() {
+		for {
+			err := updateAudienceLeaderboard(srv.Debug)
+			if err != nil {
+				log.Println(err)
+			}
+
+			time.Sleep(audienceLeaderboardCacheTime)
+		}
+	}()
+
 	srv.Use(middleware.Logger())
 	srv.Use(middleware.Recover())
 	srv.Use(session.Middleware(sessions.NewCookieStore([]byte("tagomoris"))))
@@ -140,6 +151,27 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 	if err := proto.Unmarshal(b, i.(proto.Message)); err != nil {
 		return halt(e, http.StatusBadRequest, "", fmt.Errorf("unmarshal request body: %w", err))
 	}
+	return nil
+}
+
+// audienceLeaderboardCache
+// 当日マニュアルより
+//
+// GET /api/audience/dashboard
+// アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
+var audienceLeaderboardCache []byte
+
+const audienceLeaderboardCacheTime = 500 * time.Millisecond
+
+func updateAudienceLeaderboard(isDebug bool) error {
+	leaderboard, err := makeLeaderboardPB(isDebug, 0)
+	if err != nil {
+		return fmt.Errorf("make leaderboard: %w", err)
+	}
+	marshalled, _ := proto.Marshal(&audiencepb.DashboardResponse{
+		Leaderboard: leaderboard,
+	})
+	audienceLeaderboardCache = marshalled
 	return nil
 }
 
@@ -564,7 +596,7 @@ func (*ContestantService) Dashboard(e echo.Context) error {
 		return wrapError("check session", err)
 	}
 	team, _ := getCurrentTeam(e, db, false)
-	leaderboard, err := makeLeaderboardPB(e, team.ID)
+	leaderboard, err := makeLeaderboardPB(e.Echo().Debug, team.ID)
 	if err != nil {
 		return fmt.Errorf("make leaderboard: %w", err)
 	}
@@ -1135,40 +1167,9 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 	return writeProto(e, http.StatusOK, res)
 }
 
-var (
-	// audienceLeaderboardCache
-	// marshalした結果のcache
-	audienceLeaderboardCache          []byte
-	audienceLeaderboardCacheExpiresAt time.Time
-)
-
-const audienceLeaderboardCacheTime = 500 * time.Millisecond
-
 func (*AudienceService) Dashboard(e echo.Context) error {
-	var res []byte
-	/**
-	当日マニュアルより
-
-	GET /api/audience/dashboard
-	アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
-	*/
-	// 0.5秒間キャッシュする
-	if audienceLeaderboardCache != nil &&
-		time.Now().Before(audienceLeaderboardCacheExpiresAt) {
-		res = audienceLeaderboardCache
-	} else {
-		leaderboard, err := makeLeaderboardPB(e, 0)
-		if err != nil {
-			return fmt.Errorf("make leaderboard: %w", err)
-		}
-		marshalled, _ := proto.Marshal(&audiencepb.DashboardResponse{
-			Leaderboard: leaderboard,
-		})
-		audienceLeaderboardCache = marshalled
-		audienceLeaderboardCacheExpiresAt = time.Now().Add(audienceLeaderboardCacheTime)
-		res = marshalled
-	}
-	return writeProtoMarshalled(e, http.StatusOK, res)
+	// cacheしたものを返すだけ
+	return writeProtoMarshalled(e, http.StatusOK, audienceLeaderboardCache)
 }
 
 type XsuportalContext struct {
@@ -1242,14 +1243,14 @@ func getCurrentTeam(e echo.Context, db sqlx.Queryer, lock bool) (*xsuportal.Team
 	return xc.Team, nil
 }
 
-func getCurrentContestStatus(e echo.Context, db sqlx.Queryer) (*xsuportal.ContestStatus, error) {
+func getCurrentContestStatus(isDebug bool, db sqlx.Queryer) (*xsuportal.ContestStatus, error) {
 	var contestStatus xsuportal.ContestStatus
 	err := sqlx.Get(db, &contestStatus, "SELECT *, NOW(6) AS `current_time`, CASE WHEN NOW(6) < `registration_open_at` THEN 'standby' WHEN `registration_open_at` <= NOW(6) AND NOW(6) < `contest_starts_at` THEN 'registration' WHEN `contest_starts_at` <= NOW(6) AND NOW(6) < `contest_ends_at` THEN 'started' WHEN `contest_ends_at` <= NOW(6) THEN 'finished' ELSE 'unknown' END AS `status`, IF(`contest_starts_at` <= NOW(6) AND NOW(6) < `contest_freezes_at`, 1, 0) AS `frozen` FROM `contest_config`")
 	if err != nil {
 		return nil, fmt.Errorf("query contest status: %w", err)
 	}
 	statusStr := contestStatus.StatusStr
-	if e.Echo().Debug {
+	if isDebug {
 		b, err := ioutil.ReadFile(DebugContestStatusFilePath)
 		if err == nil {
 			statusStr = string(b)
@@ -1296,7 +1297,7 @@ func loginRequired(e echo.Context, db sqlx.Queryer, option *loginRequiredOption)
 }
 
 func contestStatusRestricted(e echo.Context, db sqlx.Queryer, status resourcespb.Contest_Status, message string) (bool, error) {
-	contestStatus, err := getCurrentContestStatus(e, db)
+	contestStatus, err := getCurrentContestStatus(e.Echo().Debug, db)
 	if err != nil {
 		return false, fmt.Errorf("get current contest status: %w", err)
 	}
@@ -1404,7 +1405,7 @@ func makeContestantPB(c *xsuportal.Contestant) *resourcespb.Contestant {
 }
 
 func makeContestPB(e echo.Context) (*resourcespb.Contest, error) {
-	contestStatus, err := getCurrentContestStatus(e, db)
+	contestStatus, err := getCurrentContestStatus(e.Echo().Debug, db)
 	if err != nil {
 		return nil, fmt.Errorf("get current contest status: %w", err)
 	}
@@ -1418,8 +1419,8 @@ func makeContestPB(e echo.Context) (*resourcespb.Contest, error) {
 	}, nil
 }
 
-func makeLeaderboardPB(e echo.Context, teamID int64) (*resourcespb.Leaderboard, error) {
-	contestStatus, err := getCurrentContestStatus(e, db)
+func makeLeaderboardPB(isDebug bool, teamID int64) (*resourcespb.Leaderboard, error) {
+	contestStatus, err := getCurrentContestStatus(isDebug, db)
 	if err != nil {
 		return nil, fmt.Errorf("get current contest status: %w", err)
 	}
