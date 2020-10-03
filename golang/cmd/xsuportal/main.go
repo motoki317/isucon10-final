@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -33,6 +34,8 @@ import (
 	contestantpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/services/contestant"
 	registrationpb "github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/services/registration"
 	"github.com/isucon/isucon10-final/webapp/golang/util"
+
+	_ "net/http/pprof"
 )
 
 const (
@@ -48,6 +51,10 @@ var db *sqlx.DB
 var notifier xsuportal.Notifier
 
 func main() {
+	go func() {
+		log.Fatal(http.ListenAndServe(":6060", nil))
+	}()
+
 	srv := echo.New()
 	srv.Debug = util.GetEnv("DEBUG", "") != ""
 	srv.Server.Addr = fmt.Sprintf(":%v", util.GetEnv("PORT", "9292"))
