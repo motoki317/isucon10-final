@@ -1,13 +1,8 @@
 package xsuportal
 
 import (
-	"crypto/elliptic"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
-	"sync"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/golang/protobuf/proto"
@@ -17,43 +12,17 @@ import (
 	"github.com/isucon/isucon10-final/webapp/golang/proto/xsuportal/resources"
 )
 
-const (
-	WebpushVAPIDPrivateKeyPath = "../vapid_private.pem"
-	WebpushSubject             = "xsuportal@example.com"
-)
-
 type Notifier struct {
-	mu      sync.Mutex
-	options *webpush.Options
+}
+
+var options = webpush.Options{
+	Subscriber:      "xsuportal@example.com",
+	VAPIDPrivateKey: "8Hhzlr3izBRZ0RWKXraDpk42blfsZbUnVmy1NyniZKk=",
+	VAPIDPublicKey:  "BC7mQPMOgmwiJYTQyswmsRHLzpGVhd07HYSXtRT9EDgIf+0QMWOzYpGRGdelgT8MmOPxqtjtv4eSexJxJX8oZKc=",
 }
 
 func (n *Notifier) VAPIDKey() *webpush.Options {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.options == nil {
-		pemBytes, err := ioutil.ReadFile(WebpushVAPIDPrivateKeyPath)
-		if err != nil {
-			return nil
-		}
-		block, _ := pem.Decode(pemBytes)
-		if block == nil {
-			return nil
-		}
-		priKey, err := x509.ParseECPrivateKey(block.Bytes)
-		if err != nil {
-			return nil
-		}
-		priBytes := priKey.D.Bytes()
-		pubBytes := elliptic.Marshal(priKey.Curve, priKey.X, priKey.Y)
-		pri := base64.RawURLEncoding.EncodeToString(priBytes)
-		pub := base64.RawURLEncoding.EncodeToString(pubBytes)
-		n.options = &webpush.Options{
-			Subscriber:      WebpushSubject,
-			VAPIDPrivateKey: pri,
-			VAPIDPublicKey:  pub,
-		}
-	}
-	return n.options
+	return &options
 }
 
 type notifiableContestant struct {
