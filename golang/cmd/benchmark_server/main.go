@@ -55,19 +55,19 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 	var jobHandle *bench.ReceiveBenchmarkJobResponse_JobHandle
 	for {
 		next, err := func() (bool, error) {
-			tx, err := db.Beginx()
-			if err != nil {
-				return false, fmt.Errorf("begin tx: %w", err)
-			}
-			defer tx.Rollback()
-
-			job, err := pollBenchmarkJob(tx)
+			job, err := pollBenchmarkJob(db)
 			if err != nil {
 				return false, fmt.Errorf("poll benchmark job: %w", err)
 			}
 			if job == nil {
 				return false, nil
 			}
+
+			tx, err := db.Beginx()
+			if err != nil {
+				return false, fmt.Errorf("begin tx: %w", err)
+			}
+			defer tx.Rollback()
 
 			var gotLock bool
 			err = tx.Get(
