@@ -1138,10 +1138,11 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 }
 
 func (*AudienceService) Dashboard(e echo.Context) error {
-	// cacheしたものを返すだけ
 	audienceLeaderboardCacheM.RLock()
-	defer audienceLeaderboardCacheM.RUnlock()
-	return writeRes(e, http.StatusOK, audienceLeaderboardCache)
+	res := audienceLeaderboardCache
+	audienceLeaderboardCacheM.RUnlock()
+
+	return writeRes(e, http.StatusOK, res)
 }
 
 type XsuportalContext struct {
