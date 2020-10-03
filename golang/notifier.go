@@ -40,7 +40,7 @@ func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, up
 		err := sqlx.Select(
 			db,
 			&contestants,
-			"SELECT `id`, `team_id` FROM `contestants` WHERE `team_id` IS NOT NULL",
+			"SELECT c.id AS `id`, c.team_id AS `team_id`, s.endpoint AS `endpoint`, s.p256dh AS `p256dh`, s.auth AS `auth` FROM `contestants` AS c JOIN `push_subscriptions` AS s ON c.id = s.contestant_id WHERE `team_id` IS NOT NULL",
 		)
 		if err != nil {
 			return fmt.Errorf("select all contestants: %w", err)
@@ -86,7 +86,7 @@ func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) er
 	err := sqlx.Select(
 		db,
 		&contestants,
-		"SELECT `id`, `team_id` FROM `contestants` WHERE `team_id` = ?",
+		"SELECT c.id AS `id`, c.team_id AS `team_id`, s.endpoint AS `endpoint`, s.p256dh AS `p256dh`, s.auth AS `auth` FROM `contestants` AS c JOIN `push_subscriptions` AS s ON c.id = s.contestant_id WHERE `team_id` = ?",
 		job.TeamID,
 	)
 	if err != nil {
@@ -130,29 +130,5 @@ func (n *Notifier) notifyProto(c notifiableContestant, m proto.Message) error {
 }
 
 func (n *Notifier) notify(db sqlx.Ext, notificationPB *resources.Notification, contestantID string) (*Notification, error) {
-	m, err := proto.Marshal(notificationPB)
-	if err != nil {
-		return nil, fmt.Errorf("marshal notification: %w", err)
-	}
-	encodedMessage := base64.StdEncoding.EncodeToString(m)
-	res, err := db.Exec(
-		"INSERT INTO `notifications` (`contestant_id`, `encoded_message`, `read`, `created_at`, `updated_at`) VALUES (?, ?, FALSE, NOW(6), NOW(6))",
-		contestantID,
-		encodedMessage,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("insert notification: %w", err)
-	}
-	lastInsertID, _ := res.LastInsertId()
-	var notification Notification
-	err = sqlx.Get(
-		db,
-		&notification,
-		"SELECT * FROM `notifications` WHERE `id` = ? LIMIT 1",
-		lastInsertID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("get inserted notification: %w", err)
-	}
-	return &notification, nil
+	return nil, nil
 }
