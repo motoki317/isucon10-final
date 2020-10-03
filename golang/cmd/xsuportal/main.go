@@ -1135,10 +1135,33 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 	return writeProto(e, http.StatusOK, res)
 }
 
+var (
+	audienceLeaderboardCache          *resourcespb.Leaderboard
+	audienceLeaderboardCacheExpiresAt time.Time
+)
+
+const audienceLeaderboardCacheTime = 500 * time.Millisecond
+
 func (*AudienceService) Dashboard(e echo.Context) error {
-	leaderboard, err := makeLeaderboardPB(e, 0)
-	if err != nil {
-		return fmt.Errorf("make leaderboard: %w", err)
+	var leaderboard *resourcespb.Leaderboard
+	/**
+	当日マニュアルより
+
+	GET /api/audience/dashboard
+	アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
+	*/
+	// 0.5秒間キャッシュする
+	if audienceLeaderboardCache != nil &&
+		time.Now().Before(audienceLeaderboardCacheExpiresAt) {
+		leaderboard = audienceLeaderboardCache
+	} else {
+		var err error
+		leaderboard, err = makeLeaderboardPB(e, 0)
+		if err != nil {
+			return fmt.Errorf("make leaderboard: %w", err)
+		}
+		audienceLeaderboardCache = leaderboard
+		audienceLeaderboardCacheExpiresAt = time.Now().Add(audienceLeaderboardCacheTime)
 	}
 	return writeProto(e, http.StatusOK, &audiencepb.DashboardResponse{
 		Leaderboard: leaderboard,
