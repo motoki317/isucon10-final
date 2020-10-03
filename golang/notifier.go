@@ -56,7 +56,7 @@ func (n *Notifier) VAPIDKey() *webpush.Options {
 	return n.options
 }
 
-type contestantType struct {
+type notifiableContestant struct {
 	ID       string `db:"id"`
 	TeamID   int64  `db:"team_id"`
 	Endpoint string `db:"endpoint"`
@@ -65,7 +65,7 @@ type contestantType struct {
 }
 
 func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, updated bool) error {
-	var contestants []contestantType
+	var contestants []notifiableContestant
 
 	if c.Disclosed.Valid && c.Disclosed.Bool {
 		err := sqlx.Select(
@@ -105,14 +105,14 @@ func (n *Notifier) NotifyClarificationAnswered(db sqlx.Ext, c *Clarification, up
 			notificationPB.Id = notification.ID
 			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
 			// TODO: Web Push IIKANJI NI SHITE
-			n.sendNotification(contestant, notification.EncodedMessage)
+			n.notifyProto(contestant, notificationPB)
 		}
 	}
 	return nil
 }
 
 func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) error {
-	var contestants []contestantType
+	var contestants []notifiableContestant
 
 	err := sqlx.Select(
 		db,
@@ -139,18 +139,20 @@ func (n *Notifier) NotifyBenchmarkJobFinished(db sqlx.Ext, job *BenchmarkJob) er
 			notificationPB.Id = notification.ID
 			notificationPB.CreatedAt = timestamppb.New(notification.CreatedAt)
 			// TODO: Web Push IIKANJI NI SHITE
-			n.sendNotification(contestant, notification.EncodedMessage)
+			n.notifyProto(contestant, notificationPB)
 		}
 	}
 	return nil
 }
 
-func (n *Notifier) sendNotification(c contestantType, m string) error {
+func (n *Notifier) notifyProto(c notifiableContestant, m proto.Message) error {
+	res, _ := proto.Marshal(m)
+	encRes := base64.StdEncoding.EncodeToString(res)
 	var s webpush.Subscription
 	s.Endpoint = c.Endpoint
 	s.Keys.P256dh = c.P256dh
 	s.Keys.Auth = c.Auth
-	resp, err := webpush.SendNotification([]byte(m), &s, n.VAPIDKey())
+	resp, err := webpush.SendNotification([]byte(encRes), &s, n.VAPIDKey())
 	if err != nil {
 		return err
 	}
