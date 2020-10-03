@@ -17,8 +17,8 @@ type Notifier struct {
 
 var options = webpush.Options{
 	Subscriber:      "xsuportal@example.com",
-	VAPIDPrivateKey: "8Hhzlr3izBRZ0RWKXraDpk42blfsZbUnVmy1NyniZKk=",
-	VAPIDPublicKey:  "BC7mQPMOgmwiJYTQyswmsRHLzpGVhd07HYSXtRT9EDgIf+0QMWOzYpGRGdelgT8MmOPxqtjtv4eSexJxJX8oZKc=",
+	VAPIDPrivateKey: "8Hhzlr3izBRZ0RWKXraDpk42blfsZbUnVmy1NyniZKk",
+	VAPIDPublicKey:  "BC7mQPMOgmwiJYTQyswmsRHLzpGVhd07HYSXtRT9EDgIf-0QMWOzYpGRGdelgT8MmOPxqtjtv4eSexJxJX8oZKc",
 }
 
 func (n *Notifier) VAPIDKey() *webpush.Options {
