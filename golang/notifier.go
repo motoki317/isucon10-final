@@ -161,5 +161,29 @@ func (n *Notifier) notifyProto(c notifiableContestant, m proto.Message) error {
 }
 
 func (n *Notifier) notify(db sqlx.Ext, notificationPB *resources.Notification, contestantID string) (*Notification, error) {
-	return nil, nil
+	m, err := proto.Marshal(notificationPB)
+	if err != nil {
+		return nil, fmt.Errorf("marshal notification: %w", err)
+	}
+	encodedMessage := base64.StdEncoding.EncodeToString(m)
+	res, err := db.Exec(
+		"INSERT INTO `notifications` (`contestant_id`, `encoded_message`, `read`, `created_at`, `updated_at`) VALUES (?, ?, FALSE, NOW(6), NOW(6))",
+		contestantID,
+		encodedMessage,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert notification: %w", err)
+	}
+	lastInsertID, _ := res.LastInsertId()
+	var notification Notification
+	err = sqlx.Get(
+		db,
+		&notification,
+		"SELECT * FROM `notifications` WHERE `id` = ? LIMIT 1",
+		lastInsertID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get inserted notification: %w", err)
+	}
+	return &notification, nil
 }
