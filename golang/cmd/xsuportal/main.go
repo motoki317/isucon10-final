@@ -10,13 +10,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/golang/protobuf/proto"
@@ -74,13 +72,9 @@ func main() {
 	db.SetMaxOpenConns(10)
 
 	go func() {
-		for {
-			err := updateAudienceLeaderboard(srv.Debug)
-			if err != nil {
-				log.Println(err)
-			}
-
-			//time.Sleep(audienceLeaderboardCacheTime)
+		c := time.Tick(time.Second)
+		for _ = range c {
+			go updateAudienceLeaderboardCache(srv.Debug)
 		}
 	}()
 
@@ -162,20 +156,35 @@ func (p ProtoBinder) Bind(i interface{}, e echo.Context) error {
 // GET /api/audience/dashboard
 // アプリケーションは、データの更新から最大 1 秒古い情報を返すことができます。ただし、ベンチマーカーが検知しない限りはそれより古い情報を返しても構いません。
 
-var audienceLeaderboardCache unsafe.Pointer //*[]byte
+var (
+	audienceLeaderboardM      sync.Mutex
+	audienceLeaderboardT      time.Time
+	audienceLeaderboardCacheM sync.RWMutex
+	audienceLeaderboardCache  []byte
+)
 
-const audienceLeaderboardCacheTime = 000 * time.Millisecond
+func updateAudienceLeaderboardCache(isDebug bool) error {
+	now := time.Now()
+	audienceLeaderboardM.Lock()
+	defer audienceLeaderboardM.Unlock()
+	if audienceLeaderboardT.After(now) {
+		return nil
+	}
+	now = time.Now()
 
-func updateAudienceLeaderboard(isDebug bool) error {
 	leaderboard, err := makeLeaderboardPB(isDebug, 0)
 	if err != nil {
 		return fmt.Errorf("make leaderboard: %w", err)
 	}
-	marshalled, _ := proto.Marshal(&audiencepb.DashboardResponse{
+	res, _ := proto.Marshal(&audiencepb.DashboardResponse{
 		Leaderboard: leaderboard,
 	})
 
-	atomic.StorePointer(&audienceLeaderboardCache, unsafe.Pointer(&marshalled))
+	audienceLeaderboardT = now
+	audienceLeaderboardCacheM.Lock()
+	audienceLeaderboardCache = res
+	audienceLeaderboardCacheM.Unlock()
+
 	return nil
 }
 
@@ -1130,7 +1139,9 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 
 func (*AudienceService) Dashboard(e echo.Context) error {
 	// cacheしたものを返すだけ
-	return writeProtoMarshalled(e, http.StatusOK, *(*[]byte)(atomic.LoadPointer(&audienceLeaderboardCache)))
+	audienceLeaderboardCacheM.RLock()
+	defer audienceLeaderboardCacheM.RUnlock()
+	return writeRes(e, http.StatusOK, audienceLeaderboardCache)
 }
 
 type XsuportalContext struct {
@@ -1273,10 +1284,10 @@ func writeProto(e echo.Context, code int, m proto.Message) error {
 	return e.Blob(code, "application/vnd.google.protobuf", res)
 }
 
-// writeProtoMarshalled
+// writeRes
 // proto.Marshal で既にmarshalされた（cacheされた）byte列を送ります
-func writeProtoMarshalled(e echo.Context, code int, m []byte) error {
-	return e.Blob(code, "application/vnd.google.protobuf", m)
+func writeRes(e echo.Context, code int, res []byte) error {
+	return e.Blob(code, "application/vnd.google.protobuf", res)
 }
 
 func halt(e echo.Context, code int, humanMessage string, err error) error {
