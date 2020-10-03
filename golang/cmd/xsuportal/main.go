@@ -528,13 +528,13 @@ func (*ContestantService) RequestClarification(e echo.Context) error {
 	if err := e.Bind(&req); err != nil {
 		return err
 	}
-	tx, err := db.Beginx()
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback()
-	team, _ := getCurrentTeam(e, tx, false)
-	_, err = tx.Exec(
+	//tx, err := db.Beginx()
+	//if err != nil {
+	//	return fmt.Errorf("begin tx: %w", err)
+	//}
+	//defer tx.Rollback()
+	team, _ := getCurrentTeam(e, db, false)
+	resExec, err := db.Exec(
 		"INSERT INTO `clarifications` (`team_id`, `question`, `created_at`, `updated_at`) VALUES (?, ?, NOW(6), NOW(6))",
 		team.ID,
 		req.Question,
@@ -542,14 +542,18 @@ func (*ContestantService) RequestClarification(e echo.Context) error {
 	if err != nil {
 		return fmt.Errorf("insert clarification: %w", err)
 	}
+	lastInsertID, err := resExec.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("insert clarification: %w", err)
+	}
 	var clarification xsuportal.Clarification
-	err = tx.Get(&clarification, "SELECT * FROM `clarifications` WHERE `id` = LAST_INSERT_ID() LIMIT 1")
+	err = db.Get(&clarification, "SELECT * FROM `clarifications` WHERE `id` = ? LIMIT 1", lastInsertID)
 	if err != nil {
 		return fmt.Errorf("get clarification: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
-	}
+	//if err := db.Commit(); err != nil {
+	//	return fmt.Errorf("commit tx: %w", err)
+	//}
 	c, err := makeClarificationPB(db, &clarification, team)
 	if err != nil {
 		return fmt.Errorf("make clarification: %w", err)
