@@ -80,7 +80,7 @@ func main() {
 				log.Println(err)
 			}
 
-			time.Sleep(audienceLeaderboardCacheTime)
+			//time.Sleep(audienceLeaderboardCacheTime)
 		}
 	}()
 
