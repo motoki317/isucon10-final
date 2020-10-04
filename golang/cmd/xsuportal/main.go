@@ -75,25 +75,6 @@ func main() {
 	srv.Use(middleware.Recover())
 	srv.Use(session.Middleware(sessions.NewCookieStore([]byte("tagomoris"))))
 
-	srv.File("/", "public/audience.html")
-	srv.File("/registration", "public/audience.html")
-	srv.File("/signup", "public/audience.html")
-	srv.File("/login", "public/audience.html")
-	srv.File("/logout", "public/audience.html")
-	srv.File("/teams", "public/audience.html")
-
-	srv.File("/contestant", "public/contestant.html")
-	srv.File("/contestant/benchmark_jobs", "public/contestant.html")
-	srv.File("/contestant/benchmark_jobs/:id", "public/contestant.html")
-	srv.File("/contestant/clarifications", "public/contestant.html")
-
-	srv.File("/admin", "public/admin.html")
-	srv.File("/admin/", "public/admin.html")
-	srv.File("/admin/clarifications", "public/admin.html")
-	srv.File("/admin/clarifications/:id", "public/admin.html")
-
-	srv.Static("/", "public")
-
 	admin := &AdminService{}
 	audience := &AudienceService{}
 	registration := &RegistrationService{}
