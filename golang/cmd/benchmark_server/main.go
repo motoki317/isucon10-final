@@ -58,7 +58,7 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 	defer RBJM.Unlock()
 
 	if len(RBJC) == 0 {
-		err := db.Get(
+		err := db.Select(
 			&RBJC,
 			"SELECT * FROM `benchmark_jobs` WHERE `status` = ? ORDER BY `id`",
 			resources.BenchmarkJob_PENDING,
