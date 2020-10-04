@@ -63,11 +63,11 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 			"SELECT * FROM `benchmark_jobs` WHERE `status` = ? ORDER BY `id`",
 			resources.BenchmarkJob_PENDING,
 		)
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
 		if err != nil {
 			return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("get benchmark job: %w", err))
+		}
+		if len(RBJC) == 0 {
+			return nil, nil
 		}
 	}
 
