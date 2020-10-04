@@ -71,13 +71,6 @@ func main() {
 	db, _ = xsuportal.GetDB()
 	db.SetMaxOpenConns(10)
 
-	go func() {
-		c := time.Tick(time.Second)
-		for _ = range c {
-			go updateAudienceLeaderboardCache(srv.Debug)
-		}
-	}()
-
 	//srv.Use(middleware.Logger())
 	srv.Use(middleware.Recover())
 	srv.Use(session.Middleware(sessions.NewCookieStore([]byte("tagomoris"))))
@@ -167,7 +160,7 @@ func updateAudienceLeaderboardCache(isDebug bool) error {
 	now := time.Now()
 	audienceLeaderboardM.Lock()
 	defer audienceLeaderboardM.Unlock()
-	if audienceLeaderboardT.After(now) {
+	if audienceLeaderboardT.Add(time.Second).After(now) {
 		return nil
 	}
 	now = time.Now()
@@ -1138,6 +1131,10 @@ func (*AudienceService) ListTeams(e echo.Context) error {
 }
 
 func (*AudienceService) Dashboard(e echo.Context) error {
+	if err := updateAudienceLeaderboardCache(e.Echo().Debug); err != nil {
+		return err
+	}
+
 	audienceLeaderboardCacheM.RLock()
 	res := audienceLeaderboardCache
 	audienceLeaderboardCacheM.RUnlock()
