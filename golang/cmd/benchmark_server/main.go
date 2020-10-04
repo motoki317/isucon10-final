@@ -55,7 +55,6 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 	handle := base64.StdEncoding.EncodeToString(randomBytes)
 
 	RBJM.Lock()
-	defer RBJM.Unlock()
 
 	if len(RBJC) == 0 {
 		err := db.Select(
@@ -64,9 +63,11 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 			resources.BenchmarkJob_PENDING,
 		)
 		if err != nil {
+			RBJM.Unlock()
 			return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("get benchmark job: %w", err))
 		}
 		if len(RBJC) == 0 {
+			RBJM.Unlock()
 			return &bench.ReceiveBenchmarkJobResponse{
 				JobHandle: nil,
 			}, nil
@@ -75,6 +76,8 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 
 	job := RBJC[0]
 	RBJC = RBJC[1:]
+
+	RBJM.Unlock()
 
 	_, err = db.Exec(
 		"UPDATE `benchmark_jobs` SET `status` = ?, `handle` = ? WHERE `id` = ? AND `status` = ? LIMIT 1",
