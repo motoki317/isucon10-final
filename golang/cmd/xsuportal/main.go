@@ -256,7 +256,7 @@ func (*AdminService) ListClarifications(e echo.Context) error {
 		return halt(e, http.StatusForbidden, "管理者権限が必要です", nil)
 	}
 	var cts []ClarificationTeam
-	err := db.Select(&cts, "SELECT c.id AS \"c.id\", c.team_id AS \"c.team_id\", c.disclosed AS \"c.disclosed\", c.question AS \"c.question\", c.answer AS \"c.answer\", c.answered_at AS \"c.answered_at\", c.created_at AS \"c.created_at\", t.id AS \"t.id\", t.name AS \"t.name\", t.leader_id AS \"t.leader_id\", t.email_address AS \"t.email_address\", t.invite_token AS \"t.invite_token\", t.withdrawn AS \"t.withdrawn\", t.created_at AS \"t.created_at\" FROM clarifications AS c JOIN team AS t ON c.team_id = t.id ORDER BY c.updated_at DESC")
+	err := db.Select(&cts, "SELECT c.id AS \"c.id\", c.team_id AS \"c.team_id\", c.disclosed AS \"c.disclosed\", c.question AS \"c.question\", c.answer AS \"c.answer\", c.answered_at AS \"c.answered_at\", c.created_at AS \"c.created_at\", t.id AS \"t.id\", t.name AS \"t.name\", t.leader_id AS \"t.leader_id\", t.email_address AS \"t.email_address\", t.invite_token AS \"t.invite_token\", t.withdrawn AS \"t.withdrawn\", t.created_at AS \"t.created_at\" FROM clarifications AS c JOIN teams AS t ON c.team_id = t.id ORDER BY c.updated_at DESC")
 	if err != sql.ErrNoRows && err != nil {
 		return fmt.Errorf("query clarifications: %w", err)
 	}
@@ -526,7 +526,7 @@ func (*ContestantService) ListClarifications(e echo.Context) error {
 	}
 	team, _ := getCurrentTeam(e, db, false)
 	var cts []ClarificationTeam
-	err := db.Select(&cts, "SELECT c.id AS \"c.id\", c.team_id AS \"c.team_id\", c.disclosed AS \"c.disclosed\", c.question AS \"c.question\", c.answer AS \"c.answer\", c.answered_at AS \"c.answered_at\", c.created_at AS \"c.created_at\", t.id AS \"t.id\", t.name AS \"t.name\", t.leader_id AS \"t.leader_id\", t.email_address AS \"t.email_address\", t.invite_token AS \"t.invite_token\", t.withdrawn AS \"t.withdrawn\", t.created_at AS \"t.created_at\" FROM clarifications AS c JOIN team AS t ON c.team_id = t.id WHERE c.team_id = ? OR c.disclosed = TRUE ORDER BY c.id DESC", team.ID)
+	err := db.Select(&cts, "SELECT c.id AS \"c.id\", c.team_id AS \"c.team_id\", c.disclosed AS \"c.disclosed\", c.question AS \"c.question\", c.answer AS \"c.answer\", c.answered_at AS \"c.answered_at\", c.created_at AS \"c.created_at\", t.id AS \"t.id\", t.name AS \"t.name\", t.leader_id AS \"t.leader_id\", t.email_address AS \"t.email_address\", t.invite_token AS \"t.invite_token\", t.withdrawn AS \"t.withdrawn\", t.created_at AS \"t.created_at\" FROM clarifications AS c JOIN teams AS t ON c.team_id = t.id WHERE c.team_id = ? OR c.disclosed = TRUE ORDER BY c.id DESC", team.ID)
 	if err != sql.ErrNoRows && err != nil {
 		return fmt.Errorf("query clarifications: %w", err)
 	}
