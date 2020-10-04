@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -34,6 +35,9 @@ func (b *benchmarkQueueService) Svc() *bench.BenchmarkQueueService {
 	}
 }
 
+var RBJM sync.Mutex
+var RBJC []xsuportal.BenchmarkJob
+
 func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *bench.ReceiveBenchmarkJobRequest) (*bench.ReceiveBenchmarkJobResponse, error) {
 
 	var contestStartsAtTime time.Time
@@ -50,70 +54,45 @@ func (b *benchmarkQueueService) ReceiveBenchmarkJob(ctx context.Context, req *be
 	}
 	handle := base64.StdEncoding.EncodeToString(randomBytes)
 
-	var jobHandle *bench.ReceiveBenchmarkJobResponse_JobHandle
-	for {
-		next, err := func() (bool, error) {
-			job, err := pollBenchmarkJob(db)
-			if err != nil {
-				return false, fmt.Errorf("poll benchmark job: %w", err)
-			}
-			if job == nil {
-				return false, nil
-			}
+	RBJM.Lock()
+	defer RBJM.Unlock()
 
-			tx, err := db.Beginx()
-			if err != nil {
-				return false, fmt.Errorf("begin tx: %w", err)
-			}
-			defer tx.Rollback()
-
-			var gotLock bool
-			err = tx.Get(
-				&gotLock,
-				"SELECT 1 FROM `benchmark_jobs` WHERE `id` = ? AND `status` = ? FOR UPDATE",
-				job.ID,
-				resources.BenchmarkJob_PENDING,
-			)
-			if err == sql.ErrNoRows {
-				return true, nil
-			}
-			if err != nil {
-				return false, fmt.Errorf("get benchmark job with lock: %w", err)
-			}
-			_, err = tx.Exec(
-				"UPDATE `benchmark_jobs` SET `status` = ?, `handle` = ? WHERE `id` = ? AND `status` = ? LIMIT 1",
-				resources.BenchmarkJob_SENT,
-				handle,
-				job.ID,
-				resources.BenchmarkJob_PENDING,
-			)
-			if err != nil {
-				return false, fmt.Errorf("update benchmark job status: %w", err)
-			}
-
-			if err := tx.Commit(); err != nil {
-				return false, fmt.Errorf("commit tx: %w", err)
-			}
-
-			jobHandle = &bench.ReceiveBenchmarkJobResponse_JobHandle{
-				JobId:            job.ID,
-				Handle:           handle,
-				TargetHostname:   job.TargetHostName,
-				ContestStartedAt: contestStartsAtTimestamp,
-				JobCreatedAt:     timestamppb.New(job.CreatedAt),
-			}
-			return false, nil
-		}()
+	if len(RBJC) == 0 {
+		err := db.Get(
+			&RBJC,
+			"SELECT * FROM `benchmark_jobs` WHERE `status` = ? ORDER BY `id`",
+			resources.BenchmarkJob_PENDING,
+		)
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
 		if err != nil {
-			return nil, fmt.Errorf("fetch queue: %w", err)
-		}
-		if !next {
-			break
+			return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("get benchmark job: %w", err))
 		}
 	}
-	if jobHandle != nil {
-		log.Printf("[DEBUG] Dequeued: job_handle=%+v", jobHandle)
+
+	job := RBJC[0]
+	RBJC = RBJC[1:]
+
+	_, err = db.Exec(
+		"UPDATE `benchmark_jobs` SET `status` = ?, `handle` = ? WHERE `id` = ? AND `status` = ? LIMIT 1",
+		resources.BenchmarkJob_SENT,
+		handle,
+		job.ID,
+		resources.BenchmarkJob_PENDING,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("fetch queue: %w", fmt.Errorf("update benchmark job status: %w", err))
 	}
+
+	jobHandle := &bench.ReceiveBenchmarkJobResponse_JobHandle{
+		JobId:            job.ID,
+		Handle:           handle,
+		TargetHostname:   job.TargetHostName,
+		ContestStartedAt: contestStartsAtTimestamp,
+		JobCreatedAt:     timestamppb.New(job.CreatedAt),
+	}
+	log.Printf("[DEBUG] Dequeued: job_handle=%+v", jobHandle)
 	return &bench.ReceiveBenchmarkJobResponse{
 		JobHandle: jobHandle,
 	}, nil
