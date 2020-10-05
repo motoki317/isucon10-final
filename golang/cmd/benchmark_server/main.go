@@ -236,7 +236,7 @@ func main() {
 	//}()
 
 	port := util.GetEnv("PORT", "50051")
-	address := "0.0.0.0:" + port
+	address := ":" + port
 
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
